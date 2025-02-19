@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"time"
 )
 
 var (
@@ -9,11 +11,18 @@ var (
 	nextGameObjectId int = 0
 )
 
+// i = v / r game
+
 func main() {
 	rl.InitWindow(1600, 900, "Nothing can go wrong...")
 	defer rl.CloseWindow()
 	rl.InitAudioDevice()
 	rl.SetTargetFPS(60)
+
+	gameTimer := Timer{}
+	gameTimer.Init()
+
+	// set stage stuff
 
 	diamondTexture2D := rl.LoadTexture("resources/diamond.png")
 	diamond := Diamond{
@@ -27,6 +36,21 @@ func main() {
 	gameObjects[diamond.id] = &diamond
 
 	for !rl.WindowShouldClose() {
+		rl.DrawText(
+			fmt.Sprintf(
+				"Time elapsed: %.2f s",
+				time.Since(gameTimer.gameInitTime).Seconds(),
+			),
+			190,
+			200,
+			20,
+			rl.Black,
+		)
+
+		if hasWon() {
+			calculateScore()
+			showScore()
+		}
 
 		staticId := -1
 		if rl.IsKeyDown(rl.KeyS) {
@@ -45,11 +69,21 @@ func main() {
 
 		rl.BeginDrawing()
 		rl.ClearBackground(rl.RayWhite)
-		rl.DrawText("Congrats! You created your first window!", 190, 200, 20, rl.Black)
-
 		DrawGameObjects()
 		rl.EndDrawing()
 	}
+}
+
+func hasWon() bool {
+	return false
+}
+
+func calculateScore() {
+
+}
+
+func showScore() {
+
 }
 
 func DrawGameObjects() {
@@ -82,4 +116,12 @@ func (d *Diamond) Draw() {
 
 func (d *Diamond) GameObjectId() int {
 	return d.id
+}
+
+type Timer struct {
+	gameInitTime time.Time
+}
+
+func (t *Timer) Init() {
+	t.gameInitTime = time.Now()
 }
