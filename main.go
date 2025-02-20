@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"strconv"
 	"time"
 )
 
@@ -29,19 +30,16 @@ func main() {
 	rl.InitAudioDevice()
 	rl.SetTargetFPS(60)
 
-	// start menu
 	buttonTexture2D := rl.LoadTexture("resources/button.png")
 	startButtonScreen(buttonTexture2D, display)
-	// start menu end
 
-	// https://pixabay.com/sound-effects/female-vocal-321-countdown-240912/
-	countdownSound := rl.LoadSound("resources/female-vocal-321-countdown-240912.mp3")
-	// count down screen
-	countdown(countdownSound, display)
-	// count down end
-
-	gameTimer := Timer{}
-	gameTimer.Init()
+	gameTimer := Timer{
+		time.Now(),
+		rl.Vector2{
+			X: float32(rl.GetMonitorWidth(display) / 2),
+			Y: float32(0),
+		},
+	}
 
 	diamondTexture2D := rl.LoadTexture("resources/diamond.png")
 	diamond := Diamond{
@@ -53,43 +51,63 @@ func main() {
 	}
 	nextGameObjectId++
 	gameObjects[diamond.id] = &diamond
-
-	for !rl.WindowShouldClose() {
-		rl.DrawText(
-			fmt.Sprintf(
-				"Time elapsed: %.0f s",
-				time.Since(gameTimer.gameInitTime).Seconds(),
-			),
-			190,
-			200,
-			20,
-			rl.Black,
-		)
-
-		if hasWon() {
-			calculateScore()
-			showScore()
+	// https://pixabay.com/music/trap-spinning-head-271171/
+	bgm := rl.LoadSound("resources/spinning-head-271171.mp3")
+	rl.PlaySound(bgm)
+	for i := 0; i < 30; i++ {
+		if !rl.IsSoundPlaying(bgm) {
+			rl.PlaySound(bgm)
 		}
 
-		staticId := -1
-		if rl.IsKeyDown(rl.KeyS) {
-			newDiamond := Diamond{
-				id:        staticId,
-				texture:   diamondTexture2D,
-				sourceRec: rl.Rectangle{X: 0, Y: 0, Width: 200, Height: 200},
-				position:  rl.Vector2{X: 500, Y: 500},
-				color:     rl.Blue,
+		// https://pixabay.com/sound-effects/female-vocal-321-countdown-240912/
+		countdownSound := rl.LoadSound("resources/female-vocal-321-countdown-240912.mp3")
+		countdown(countdownSound, display, fmt.Sprintf("stage %s", strconv.Itoa(i+1)))
+
+		for !rl.WindowShouldClose() {
+			printYourTime(gameTimer)
+
+			if hasWon() {
+				calculateScore()
+				showScore()
 			}
-			gameObjects[staticId] = &newDiamond
-		} else {
-			delete(gameObjects, staticId)
-		}
 
-		rl.BeginDrawing()
-		rl.ClearBackground(rl.RayWhite)
-		DrawGameObjects()
-		rl.EndDrawing()
+			staticId := -1
+			if rl.IsKeyDown(rl.KeyS) {
+				newDiamond := Diamond{
+					id:        staticId,
+					texture:   diamondTexture2D,
+					sourceRec: rl.Rectangle{X: 0, Y: 0, Width: 200, Height: 200},
+					position:  rl.Vector2{X: 500, Y: 500},
+					color:     rl.Blue,
+				}
+				gameObjects[staticId] = &newDiamond
+			} else {
+				delete(gameObjects, staticId)
+			}
+
+			if rl.IsKeyDown(rl.KeyD) {
+				break
+			}
+
+			rl.BeginDrawing()
+			rl.ClearBackground(rl.RayWhite)
+			DrawGameObjects()
+			rl.EndDrawing()
+		}
 	}
+}
+
+func printYourTime(gameTimer Timer) {
+	rl.DrawText(
+		fmt.Sprintf(
+			"Your Time: %.0f s",
+			time.Since(gameTimer.gameInitTime).Seconds(),
+		),
+		int32(gameTimer.position.X),
+		int32(gameTimer.position.Y),
+		100,
+		rl.Black,
+	)
 }
 
 func startButtonScreen(buttonTexture2D rl.Texture2D, display int) {
@@ -117,7 +135,7 @@ func startButtonScreen(buttonTexture2D rl.Texture2D, display int) {
 	}
 }
 
-func countdown(countdownSound rl.Sound, display int) {
+func countdown(countdownSound rl.Sound, display int, stageName string) {
 	beginTimer := Timer{}
 	beginTimer.Init()
 	rl.PlaySound(countdownSound)
@@ -128,11 +146,12 @@ func countdown(countdownSound rl.Sound, display int) {
 
 		rl.DrawText(
 			fmt.Sprintf(
-				"Be Ready!",
+				"Be Ready for %s",
+				stageName,
 			),
-			int32(rl.GetMonitorWidth(display)/2-200),
+			int32(rl.GetMonitorWidth(display)/2-300),
 			int32(rl.GetMonitorHeight(display)/2-300),
-			300,
+			100,
 			rl.Black,
 		)
 		if secondsLeft <= 0 {
@@ -188,6 +207,7 @@ func (d *Diamond) GameObjectId() int {
 
 type Timer struct {
 	gameInitTime time.Time
+	position     rl.Vector2
 }
 
 func (t *Timer) Init() {
