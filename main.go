@@ -29,7 +29,10 @@ func main() {
 	rl.SetTargetFPS(60)
 
 	buttonTexture2D := rl.LoadTexture("resources/button.png")
-	startButtonScreen(buttonTexture2D, display)
+	startTexture2D := rl.LoadTexture("resources/start.png")
+	if !startButtonScreen(buttonTexture2D, display, startTexture2D) {
+		return
+	}
 
 	gameTimer := Timer{
 		time.Now(),
@@ -63,6 +66,10 @@ func main() {
 		countdown(countdownSound, display, fmt.Sprintf("stage %s", strconv.Itoa(i+1)))
 
 		for !rl.WindowShouldClose() {
+			if rl.WindowShouldClose() {
+				return
+			}
+
 			printYourTime(gameTimer)
 
 			if hasWon() {
@@ -113,7 +120,11 @@ func printYourTime(gameTimer Timer) {
 	)
 }
 
-func startButtonScreen(buttonTexture2D rl.Texture2D, display int) {
+func startButtonScreen(
+	buttonTexture2D rl.Texture2D,
+	display int,
+	startTexture2D rl.Texture2D,
+) bool {
 	button := Button{
 		id:        -1,
 		texture:   buttonTexture2D,
@@ -131,11 +142,18 @@ func startButtonScreen(buttonTexture2D rl.Texture2D, display int) {
 		rl.ClearBackground(rl.DarkGray)
 		mousePoint := rl.GetMousePosition()
 		if button.CheckInput(mousePoint) {
-			break
+			return true
 		}
+		rl.DrawTextureRec(
+			startTexture2D,
+			rl.Rectangle{X: 0, Y: 0, Width: 1600, Height: 900},
+			rl.Vector2{X: float32(rl.GetMonitorWidth(display))/2 - 800, Y: float32(rl.GetMonitorHeight(display))/2 - 450},
+			rl.Gray,
+		)
 		button.Draw()
 		rl.EndDrawing()
 	}
+	return false
 }
 
 func countdown(countdownSound rl.Sound, display int, stageName string) {
