@@ -12,8 +12,6 @@ var (
 	nextGameObjectId int = 0
 )
 
-// i = v / r game
-
 func main() {
 	display := rl.GetCurrentMonitor()
 	userMonitorWidth := rl.GetMonitorWidth(display)
@@ -54,6 +52,7 @@ func main() {
 	// https://pixabay.com/music/trap-spinning-head-271171/
 	bgm := rl.LoadSound("resources/spinning-head-271171.mp3")
 	rl.PlaySound(bgm)
+	gunShot := rl.LoadSound("resources/shotgun-03-38220.mp3")
 	for i := 0; i < 30; i++ {
 		if !rl.IsSoundPlaying(bgm) {
 			rl.PlaySound(bgm)
@@ -87,6 +86,10 @@ func main() {
 
 			if rl.IsKeyDown(rl.KeyD) {
 				break
+			}
+
+			if rl.IsMouseButtonDown(rl.MouseLeftButton) {
+				rl.PlaySound(gunShot)
 			}
 
 			rl.BeginDrawing()
