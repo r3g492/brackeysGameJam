@@ -149,7 +149,6 @@ func main() {
 
 			if rl.IsMouseButtonPressed(rl.MouseLeftButton) {
 				rl.PlaySound(gunShot)
-				isMouseOverEnemy(rl.GetMousePosition())
 				createBullet(diamondTexture2D, rl.GetMousePosition(), player)
 			}
 			bulletCollisionCheck()
@@ -169,7 +168,7 @@ func createBullet(diamondTexture2D rl.Texture2D, mousePosition rl.Vector2, playe
 	if distance != 0 {
 		unitX := dx / distance
 		unitY := dy / distance
-		bulletSpeed := float32(50)
+		bulletSpeed := float32(100)
 		bulletVector := rl.Vector2{
 			X: unitX * bulletSpeed,
 			Y: unitY * bulletSpeed,
@@ -177,7 +176,7 @@ func createBullet(diamondTexture2D rl.Texture2D, mousePosition rl.Vector2, playe
 
 		bullet := Bullet{
 			id:            nextGameObjectId,
-			texture:       diamondTexture2D, // You can load a dedicated bullet texture if needed.
+			texture:       diamondTexture2D,
 			sourceRec:     rl.Rectangle{X: 0, Y: 0, Width: 20, Height: 20},
 			position:      player.position,
 			color:         rl.Yellow,
@@ -409,29 +408,20 @@ func hasWonStage() bool {
 	return true
 }
 
-func isMouseOverEnemy(mousePosition rl.Vector2) bool {
-	for key, obj := range gameObjects {
-		if obj.IsEnemy() {
-			hitbox := obj.Hitbox()
-			if mousePosition.X >= hitbox.X && mousePosition.X <= hitbox.X+hitbox.Width &&
-				mousePosition.Y >= hitbox.Y && mousePosition.Y <= hitbox.Y+hitbox.Height {
-				delete(gameObjects, key)
-				return true
-			}
-		}
-	}
-	return false
-}
-
 func bulletCollisionCheck() {
 	for bulletKey, bulletObj := range gameObjects {
 		if bulletObj.IsBullet() {
 			bulletHitbox := bulletObj.Hitbox()
 
+			// Remove bullet if it's out of bounds.
 			if bulletHitbox.X < 0 || bulletHitbox.Y < 0 ||
 				bulletHitbox.X > 5000 || bulletHitbox.Y > 5000 {
 				delete(gameObjects, bulletKey)
+				continue
 			}
+
+			bulletCurPos := rl.Vector2{X: bulletHitbox.X, Y: bulletHitbox.Y}
+			bulletPrevPos := bulletObj.PrevPosition()
 
 			for enemyKey, enemyObj := range gameObjects {
 				if bulletKey == enemyKey {
@@ -439,17 +429,53 @@ func bulletCollisionCheck() {
 				}
 				if enemyObj.IsEnemy() {
 					enemyHitbox := enemyObj.Hitbox()
-					if bulletHitbox.X < enemyHitbox.X+enemyHitbox.Width &&
-						bulletHitbox.X+bulletHitbox.Width > enemyHitbox.X &&
-						bulletHitbox.Y < enemyHitbox.Y+enemyHitbox.Height &&
-						bulletHitbox.Y+bulletHitbox.Height > enemyHitbox.Y {
+					if rl.CheckCollisionRecs(bulletHitbox, enemyHitbox) ||
+						lineIntersectsRect(bulletPrevPos, bulletCurPos, enemyHitbox) {
 						delete(gameObjects, bulletKey)
 						delete(gameObjects, enemyKey)
+						break
 					}
 				}
 			}
 		}
 	}
+}
+
+func pointInRect(p rl.Vector2, rect rl.Rectangle) bool {
+	return p.X >= rect.X && p.X <= rect.X+rect.Width &&
+		p.Y >= rect.Y && p.Y <= rect.Y+rect.Height
+}
+
+func lineSegmentsIntersect(p, p2, q, q2 rl.Vector2) bool {
+	orientation := func(a, b, c rl.Vector2) float32 {
+		return (b.Y-a.Y)*(c.X-a.X) - (b.X-a.X)*(c.Y-a.Y)
+	}
+	o1 := orientation(p, p2, q)
+	o2 := orientation(p, p2, q2)
+	o3 := orientation(q, q2, p)
+	o4 := orientation(q, q2, p2)
+
+	return o1*o2 < 0 && o3*o4 < 0
+}
+
+func lineIntersectsRect(p, q rl.Vector2, rect rl.Rectangle) bool {
+	if pointInRect(p, rect) || pointInRect(q, rect) {
+		return true
+	}
+
+	topLeft := rl.Vector2{X: rect.X, Y: rect.Y}
+	topRight := rl.Vector2{X: rect.X + rect.Width, Y: rect.Y}
+	bottomRight := rl.Vector2{X: rect.X + rect.Width, Y: rect.Y + rect.Height}
+	bottomLeft := rl.Vector2{X: rect.X, Y: rect.Y + rect.Height}
+
+	if lineSegmentsIntersect(p, q, topLeft, topRight) ||
+		lineSegmentsIntersect(p, q, topRight, bottomRight) ||
+		lineSegmentsIntersect(p, q, bottomRight, bottomLeft) ||
+		lineSegmentsIntersect(p, q, bottomLeft, topLeft) {
+		return true
+	}
+
+	return false
 }
 
 func MoveGameObjects() {
@@ -471,6 +497,7 @@ type GameObject interface {
 	IsBullet() bool
 	Hitbox() rl.Rectangle
 	Move()
+	PrevPosition() rl.Vector2
 }
 
 type Timer struct {
@@ -579,6 +606,10 @@ func (b *Button) Move() {
 	return
 }
 
+func (b *Button) PrevPosition() rl.Vector2 {
+	return b.position
+}
+
 type Player struct {
 	id            int
 	texture       rl.Texture2D
@@ -614,6 +645,10 @@ func (p *Player) Hitbox() rl.Rectangle {
 }
 
 func (p *Player) Move() {
+}
+
+func (p *Player) PrevPosition() rl.Vector2 {
+	return p.position
 }
 
 type Enemy struct {
@@ -661,6 +696,10 @@ func (e *Enemy) Move() {
 	e.position.Y += e.vector.Y
 }
 
+func (e *Enemy) PrevPosition() rl.Vector2 {
+	return e.position
+}
+
 type Bullet struct {
 	id            int
 	texture       rl.Texture2D
@@ -704,6 +743,13 @@ func (b *Bullet) IsBullet() bool {
 func (b *Bullet) Move() {
 	b.position.X += b.vector.X
 	b.position.Y += b.vector.Y
+}
+
+func (b *Bullet) PrevPosition() rl.Vector2 {
+	return rl.Vector2{
+		X: b.position.X - b.vector.X,
+		Y: b.position.Y - b.vector.Y,
+	}
 }
 
 func raylibWindowMidPoint(elementWidth float32, elementHeight float32) (midX float32, midY float32) {
