@@ -836,7 +836,6 @@ func (p *Player) Draw() {
 		Y: mousePosition.Y - playerPosition.Y,
 	}
 
-	// Calculate the angle (in degrees) of the vector from the player to the mouse
 	angle := math.Atan2(float64(playerToMouseVector.Y), float64(playerToMouseVector.X)) * (180 / math.Pi)
 	if angle < 0 {
 		angle += 360
@@ -844,11 +843,6 @@ func (p *Player) Draw() {
 
 	var texture rl.Texture2D
 
-	// Define quadrants:
-	// Bottom (frontTexture): 45° to 135°   [mouse is below the player]
-	// Left   (leftTexture): 135° to 225°    [mouse is left of the player]
-	// Top    (backTexture): 225° to 315°    [mouse is above the player]
-	// Right  (rightTexture): otherwise      [mouse is right of the player]
 	if angle >= 45 && angle < 135 {
 		texture = p.frontTexture
 	} else if angle >= 135 && angle < 225 {
@@ -859,7 +853,6 @@ func (p *Player) Draw() {
 		texture = p.rightTexture
 	}
 
-	// Calculate texture drawing position (adjust as needed)
 	textureWidth := float32(texture.Width)
 	textureHeight := float32(texture.Height)
 	texturePosition := rl.Vector2{
@@ -874,7 +867,7 @@ func (p *Player) Draw() {
 			Height: textureHeight,
 		},
 		texturePosition,
-		rl.White, // white color means no tint
+		rl.White,
 	)
 }
 
