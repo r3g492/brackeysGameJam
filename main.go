@@ -4,6 +4,7 @@ import (
 	"embed"
 	"fmt"
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"image/color"
 	"log"
 	"math"
 	"math/rand"
@@ -18,13 +19,15 @@ var resFS embed.FS
 
 var (
 	gameObjects                = make(map[int]GameObject)
+	deadObjects                = make(map[int]GameObject)
 	nextGameObjectId int       = 0
+	nextDeadObjectId           = 0
 	lastShotFired    time.Time = time.Now()
-	stageEnd                   = 20
+	stageEnd                   = 15
 	minDistance      float32   = 1000
 )
 
-func LoadTextureFromEmbedded(filename string) rl.Texture2D {
+func LoadTextureFromEmbedded(filename string, resizeWidth int32, resizeHeight int32) (rl.Texture2D, *rl.Image) {
 	data, err := resFS.ReadFile("resources/" + filename)
 	if err != nil {
 		log.Fatalf("failed to read embedded file %s: %v", filename, err)
@@ -34,9 +37,12 @@ func LoadTextureFromEmbedded(filename string) rl.Texture2D {
 	if img.Width == 0 {
 		log.Fatalf("failed to load image %s from embedded data", filename)
 	}
+	if resizeWidth != -1 && resizeHeight != -1 {
+		rl.ImageResize(img, resizeWidth, resizeHeight)
+	}
 	tex := rl.LoadTextureFromImage(img)
 	rl.UnloadImage(img)
-	return tex
+	return tex, img
 }
 
 func LoadSoundFromEmbedded(filename string) rl.Sound {
@@ -76,17 +82,22 @@ func main() {
 	rl.InitAudioDevice()
 	rl.SetTargetFPS(60)
 
-	buttonTexture2D := LoadTextureFromEmbedded("button.png")
-	startTexture2D := LoadTextureFromEmbedded("start.png")
+	screenWidth = int32(rl.GetScreenWidth())
+	screenHeight = int32(rl.GetScreenHeight())
+
+	buttonTexture2D, _ := LoadTextureFromEmbedded("button.png", -1, -1)
+	startTexture2D, _ := LoadTextureFromEmbedded("start.png", 1600, 900)
+	simpleTexture, _ := LoadTextureFromEmbedded("diamond.png", -1, -1)
+	enemyTexture, _ := LoadTextureFromEmbedded("enemy.png", 100, 100)
+	background, _ := LoadTextureFromEmbedded("snow.png", screenWidth, screenHeight)
 	if !startButtonScreen(buttonTexture2D, display, startTexture2D) {
 		return
 	}
 
-	diamondTexture2D := LoadTextureFromEmbedded("diamond.png")
 	midPointX, midPointY := raylibWindowMidPoint(100, 100)
 	player := Player{
 		id:            0,
-		texture:       diamondTexture2D,
+		texture:       simpleTexture,
 		sourceRec:     rl.Rectangle{X: 0, Y: 0, Width: 30, Height: 30},
 		position:      rl.Vector2{X: midPointX, Y: midPointY},
 		color:         rl.Black,
@@ -125,7 +136,7 @@ func main() {
 
 		player.position.X = midPointX
 		player.position.Y = midPointY
-
+		CleanAllDead()
 		// create enemy
 		for i := 0; i <= stageIdx; i++ {
 			enemyPosition := generateEnemyPosition(
@@ -137,7 +148,7 @@ func main() {
 				100,
 				minDistance,
 			)
-			createEnemy(diamondTexture2D, enemyPosition)
+			createEnemy(enemyTexture, enemyPosition)
 		}
 
 		for !rl.WindowShouldClose() {
@@ -163,6 +174,7 @@ func main() {
 				rl.PlaySound(loseSound)
 				rl.StopSound(bgm)
 				if gameOverScreen(buttonTexture2D, display, startTexture2D) {
+					CleanAllDead()
 					// restart game
 					stageIdx = -1
 					gameTimer.Init()
@@ -176,14 +188,26 @@ func main() {
 				if time.Since(lastShotFired) > time.Duration(200)*time.Millisecond {
 					lastShotFired = time.Now()
 					rl.PlaySound(gunShot)
-					createBullet(diamondTexture2D, rl.GetMousePosition(), player)
+					createBullet(simpleTexture, rl.GetMousePosition(), player)
 				}
 			}
-			bulletCollisionCheck()
+			bulletCollisionCheck(enemyTexture)
 			rl.BeginDrawing()
 			rl.ClearBackground(rl.DarkGray)
+			rl.DrawTexture(
+				background,
+				0,
+				0,
+				rl.Color{
+					R: 150,
+					G: 150,
+					B: 150,
+					A: 255,
+				},
+			)
 			EnemyPlan(player)
 			MoveGameObjects()
+			DrawDeadObjects()
 			DrawGameObjects()
 			rl.EndDrawing()
 		}
@@ -223,7 +247,7 @@ func createEnemy(enemyTexture rl.Texture2D, generatePosition rl.Vector2) {
 		texture:          enemyTexture,
 		sourceRec:        rl.Rectangle{X: 0, Y: 0, Width: 100, Height: 100},
 		position:         generatePosition,
-		color:            rl.Red,
+		color:            rl.White,
 		movementSpeed:    0,
 		lastPlanVector:   rl.Vector2{},
 		plan:             0,
@@ -234,6 +258,30 @@ func createEnemy(enemyTexture rl.Texture2D, generatePosition rl.Vector2) {
 	}
 	gameObjects[nextGameObjectId] = &enemy
 	nextGameObjectId++
+}
+
+func createDead(deadTexture rl.Texture2D, generatePosition rl.Vector2) {
+	dead := Dead{
+		id:        nextDeadObjectId,
+		texture:   deadTexture,
+		sourceRec: rl.Rectangle{X: 0, Y: 0, Width: 100, Height: 100},
+		position:  generatePosition,
+		color: color.RGBA{
+			R: 0,
+			G: 0,
+			B: 0,
+			A: 30,
+		},
+		movementSpeed:    0,
+		lastPlanVector:   rl.Vector2{},
+		plan:             0,
+		movePlan:         0,
+		lastPlanInitTime: time.Now(),
+		lastPlanDuration: time.Duration(100) * time.Millisecond,
+		planSet:          false,
+	}
+	deadObjects[nextDeadObjectId] = &dead
+	nextDeadObjectId++
 }
 
 func generateEnemyPosition(playerCenter rl.Vector2, enemyWidth, enemyHeight, minDistance float32) rl.Vector2 {
@@ -498,12 +546,11 @@ func hasWonStage() bool {
 	return true
 }
 
-func bulletCollisionCheck() {
+func bulletCollisionCheck(deadTexture rl.Texture2D) {
 	for bulletKey, bulletObj := range gameObjects {
 		if bulletObj.IsBullet() {
 			bulletHitbox := bulletObj.Hitbox()
 
-			// Remove bullet if it's out of bounds.
 			if bulletHitbox.X < 0 || bulletHitbox.Y < 0 ||
 				bulletHitbox.X > 5000 || bulletHitbox.Y > 5000 {
 				delete(gameObjects, bulletKey)
@@ -523,6 +570,7 @@ func bulletCollisionCheck() {
 						lineIntersectsRect(bulletPrevPos, bulletCurPos, enemyHitbox) {
 						delete(gameObjects, bulletKey)
 						delete(gameObjects, enemyKey)
+						createDead(deadTexture, enemyObj.PrevPosition())
 						break
 					}
 				}
@@ -577,6 +625,18 @@ func MoveGameObjects() {
 func DrawGameObjects() {
 	for _, obj := range gameObjects {
 		obj.Draw()
+	}
+}
+
+func DrawDeadObjects() {
+	for _, obj := range deadObjects {
+		obj.Draw()
+	}
+}
+
+func CleanAllDead() {
+	for _, obj := range deadObjects {
+		obj.Delete()
 	}
 }
 
@@ -814,7 +874,7 @@ func (e *Enemy) resetPlan() {
 		e.lastPlanDuration = time.Duration(50) * time.Millisecond
 	}
 
-	e.movementSpeed = float32(rand.Intn(15) + 3)
+	e.movementSpeed = float32(rand.Intn(15) + 5)
 	if e.plan == 3 {
 		e.movementSpeed += 5
 		e.lastPlanDuration = time.Duration(500) * time.Millisecond
@@ -854,12 +914,27 @@ func (e *Enemy) isOutOfMonitor() bool {
 }
 
 func (e *Enemy) Draw() {
-	rl.DrawTextureRec(
-		e.texture,
-		e.sourceRec,
-		e.position,
-		e.color,
-	)
+	if e.plan == 3 && e.movementSpeed >= 23 {
+		rl.DrawTextureRec(
+			e.texture,
+			e.sourceRec,
+			e.position,
+			rl.Color{
+				R: 255,
+				G: 100,
+				B: 100,
+				A: 255,
+			},
+		)
+	} else {
+		rl.DrawTextureRec(
+			e.texture,
+			e.sourceRec,
+			e.position,
+			e.color,
+		)
+	}
+
 }
 
 func (e *Enemy) Hitbox() rl.Rectangle {
@@ -975,6 +1050,66 @@ func (e *Enemy) PrevPosition() rl.Vector2 {
 
 func (e *Enemy) Delete() {
 	delete(gameObjects, e.id)
+	return
+}
+
+type Dead struct {
+	id               int
+	texture          rl.Texture2D
+	sourceRec        rl.Rectangle
+	position         rl.Vector2
+	color            rl.Color
+	movementSpeed    float32
+	lastPlanVector   rl.Vector2
+	plan             int
+	movePlan         int
+	lastPlanInitTime time.Time
+	lastPlanDuration time.Duration
+	planSet          bool
+}
+
+func (d *Dead) Draw() {
+	rl.DrawTextureRec(
+		d.texture,
+		d.sourceRec,
+		d.position,
+		d.color,
+	)
+}
+
+func (d *Dead) Hitbox() rl.Rectangle {
+	return rl.Rectangle{
+		X:      d.position.X,
+		Y:      d.position.Y,
+		Width:  d.sourceRec.Width,
+		Height: d.sourceRec.Height,
+	}
+}
+
+func (d *Dead) GameObjectId() int {
+	return d.id
+}
+
+func (d *Dead) IsEnemy() bool {
+	return false
+}
+
+func (d *Dead) IsBullet() bool {
+	return false
+}
+
+func (d *Dead) Move() {
+}
+
+func (d *Dead) EnemyPlan(player Player) {
+}
+
+func (d *Dead) PrevPosition() rl.Vector2 {
+	return d.position
+}
+
+func (d *Dead) Delete() {
+	delete(deadObjects, d.id)
 	return
 }
 
