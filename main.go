@@ -34,14 +34,6 @@ func main() {
 		return
 	}
 
-	gameTimer := Timer{
-		time.Now(),
-		rl.Vector2{
-			X: float32(rl.GetMonitorWidth(display) / 2),
-			Y: float32(0),
-		},
-	}
-
 	diamondTexture2D := rl.LoadTexture("resources/diamond.png")
 	midPointX, midPointY := raylibWindowMidPoint(100, 100)
 	player := Player{
@@ -61,6 +53,14 @@ func main() {
 	gunShot := rl.LoadSound("resources/shotgun-03-38220.mp3")
 	stageIdx := 0
 	stageEnd := 3
+
+	gameTimer := Timer{
+		time.Now(),
+		rl.Vector2{
+			X: float32(rl.GetMonitorWidth(display) / 2),
+			Y: float32(0),
+		},
+	}
 	for ; stageIdx < stageEnd; stageIdx++ {
 		if !rl.IsSoundPlaying(bgm) {
 			rl.PlaySound(bgm)
@@ -112,11 +112,11 @@ func main() {
 				return
 			}
 
-			printYourTime(gameTimer)
+			printYourTime(gameTimer, time.Now(), false, display)
 
 			if hasWonStage() {
 				if stageIdx >= stageEnd-1 {
-					if WinScreen(buttonTexture2D, display, startTexture2D) {
+					if WinScreen(buttonTexture2D, display, startTexture2D, gameTimer) {
 						return
 					}
 				}
@@ -128,6 +128,7 @@ func main() {
 				if gameOverScreen(buttonTexture2D, display, startTexture2D) {
 					// restart game
 					stageIdx = -1
+					gameTimer.Init()
 					break
 				}
 				return
@@ -201,19 +202,6 @@ func playerDeathCheck(player *Player) bool {
 	return false
 }
 
-func printYourTime(gameTimer Timer) {
-	rl.DrawText(
-		fmt.Sprintf(
-			"Your Time: %.0f s",
-			time.Since(gameTimer.gameInitTime).Seconds(),
-		),
-		int32(gameTimer.position.X),
-		int32(gameTimer.position.Y),
-		100,
-		rl.Black,
-	)
-}
-
 func startButtonScreen(
 	buttonTexture2D rl.Texture2D,
 	display int,
@@ -274,11 +262,21 @@ func gameOverScreen(
 		if button.CheckInput(mousePoint) {
 			return true
 		}
+
 		rl.DrawTextureRec(
 			startTexture2D,
 			rl.Rectangle{X: 0, Y: 0, Width: 1600, Height: 900},
 			rl.Vector2{X: float32(rl.GetMonitorWidth(display))/2 - 800, Y: float32(rl.GetMonitorHeight(display))/2 - 450},
 			rl.Gray,
+		)
+		rl.DrawText(
+			fmt.Sprintf(
+				"you died. \n you must be perfect...",
+			),
+			int32(rl.GetMonitorWidth(display)/2-400),
+			int32(rl.GetMonitorHeight(display)/2-400),
+			100,
+			rl.Red,
 		)
 		button.Draw()
 		rl.EndDrawing()
@@ -290,6 +288,7 @@ func WinScreen(
 	buttonTexture2D rl.Texture2D,
 	display int,
 	startTexture2D rl.Texture2D,
+	gameTimer Timer,
 ) bool {
 	button := Button{
 		id:        -1,
@@ -302,7 +301,7 @@ func WinScreen(
 		color:  rl.Purple,
 		status: 0,
 	}
-
+	winTime := time.Now()
 	for !rl.WindowShouldClose() {
 		rl.BeginDrawing()
 		rl.ClearBackground(rl.DarkGray)
@@ -310,12 +309,23 @@ func WinScreen(
 		if button.CheckInput(mousePoint) {
 			return true
 		}
+
 		rl.DrawTextureRec(
 			startTexture2D,
 			rl.Rectangle{X: 0, Y: 0, Width: 1600, Height: 900},
 			rl.Vector2{X: float32(rl.GetMonitorWidth(display))/2 - 800, Y: float32(rl.GetMonitorHeight(display))/2 - 450},
 			rl.Gray,
 		)
+		rl.DrawText(
+			fmt.Sprintf(
+				"You've Won!",
+			),
+			int32(rl.GetMonitorWidth(display)/2-500),
+			int32(rl.GetMonitorHeight(display)/2-300),
+			100,
+			rl.White,
+		)
+		printYourTime(gameTimer, winTime, true, display)
 		button.Draw()
 		rl.EndDrawing()
 	}
@@ -372,10 +382,6 @@ func isMouseOverEnemy(mousePosition rl.Vector2) bool {
 	return false
 }
 
-func hasWon() bool {
-	return false
-}
-
 func DrawGameObjects() {
 	for _, obj := range gameObjects {
 		obj.Draw()
@@ -396,6 +402,33 @@ type Timer struct {
 
 func (t *Timer) Init() {
 	t.gameInitTime = time.Now()
+}
+
+func printYourTime(gameTimer Timer, queryTime time.Time, won bool, display int) {
+	duration := queryTime.Sub(gameTimer.gameInitTime)
+	if won {
+		rl.DrawText(
+			fmt.Sprintf(
+				"Your Record: %.0f s",
+				duration.Seconds(),
+			),
+			int32(rl.GetMonitorWidth(display)/2+150),
+			int32(rl.GetMonitorHeight(display)/2-250),
+			50,
+			rl.White,
+		)
+	} else {
+		rl.DrawText(
+			fmt.Sprintf(
+				"Your Time: %.0f s",
+				duration.Seconds(),
+			),
+			int32(gameTimer.position.X),
+			int32(gameTimer.position.Y),
+			100,
+			rl.Black,
+		)
+	}
 }
 
 type Button struct {
