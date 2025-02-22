@@ -166,8 +166,6 @@ func main() {
 				return
 			}
 
-			printYourTime(gameTimer, time.Now(), false, display)
-
 			if hasWonStage() {
 				if stageIdx >= stageEnd-1 {
 					rl.PlaySound(winSound)
@@ -219,6 +217,7 @@ func main() {
 			MoveGameObjects()
 			DrawDeadObjects()
 			DrawGameObjects()
+			printYourTime(gameTimer, time.Now(), false, display)
 			rl.EndDrawing()
 		}
 	}
