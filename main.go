@@ -60,7 +60,7 @@ func main() {
 	rl.PlaySound(bgm)
 	gunShot := rl.LoadSound("resources/shotgun-03-38220.mp3")
 	stageIdx := 0
-	stageEnd := 30
+	stageEnd := 3
 	for ; stageIdx < stageEnd; stageIdx++ {
 		if !rl.IsSoundPlaying(bgm) {
 			rl.PlaySound(bgm)
@@ -115,13 +115,12 @@ func main() {
 			printYourTime(gameTimer)
 
 			if hasWonStage() {
-				// go to victory screen
+				if stageIdx >= stageEnd-1 {
+					if WinScreen(buttonTexture2D, display, startTexture2D) {
+						return
+					}
+				}
 				break
-			}
-
-			if hasWon() {
-				calculateScore()
-				showScore()
 			}
 
 			playerMovement(&player)
@@ -287,6 +286,42 @@ func gameOverScreen(
 	return false
 }
 
+func WinScreen(
+	buttonTexture2D rl.Texture2D,
+	display int,
+	startTexture2D rl.Texture2D,
+) bool {
+	button := Button{
+		id:        -1,
+		texture:   buttonTexture2D,
+		sourceRec: rl.Rectangle{X: 0, Y: 0, Width: 220, Height: 100},
+		position: rl.Vector2{
+			X: float32(rl.GetMonitorWidth(display))/2 - 220/2,
+			Y: float32(rl.GetMonitorHeight(display))/2 - 220/2,
+		},
+		color:  rl.Purple,
+		status: 0,
+	}
+
+	for !rl.WindowShouldClose() {
+		rl.BeginDrawing()
+		rl.ClearBackground(rl.DarkGray)
+		mousePoint := rl.GetMousePosition()
+		if button.CheckInput(mousePoint) {
+			return true
+		}
+		rl.DrawTextureRec(
+			startTexture2D,
+			rl.Rectangle{X: 0, Y: 0, Width: 1600, Height: 900},
+			rl.Vector2{X: float32(rl.GetMonitorWidth(display))/2 - 800, Y: float32(rl.GetMonitorHeight(display))/2 - 450},
+			rl.Gray,
+		)
+		button.Draw()
+		rl.EndDrawing()
+	}
+	return false
+}
+
 func countdown(countdownSound rl.Sound, display int, stageName string) {
 	beginTimer := Timer{}
 	beginTimer.Init()
@@ -339,14 +374,6 @@ func isMouseOverEnemy(mousePosition rl.Vector2) bool {
 
 func hasWon() bool {
 	return false
-}
-
-func calculateScore() {
-
-}
-
-func showScore() {
-
 }
 
 func DrawGameObjects() {
