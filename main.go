@@ -76,50 +76,29 @@ func main() {
 		player.position.Y = midPointY
 
 		// create enemy
-		enemy1 := Enemy{
-			id:            nextGameObjectId,
-			texture:       diamondTexture2D,
-			sourceRec:     rl.Rectangle{X: 0, Y: 0, Width: 50, Height: 50},
-			position:      rl.Vector2{X: midPointX + 500, Y: midPointY + 500},
-			color:         rl.Red,
-			movementSpeed: 5,
-			lastPlanVector: rl.Vector2{
-				X: 0,
-				Y: 0,
-			},
-		}
-		gameObjects[nextGameObjectId] = &enemy1
-		nextGameObjectId++
+		for i := 0; i <= stageIdx; i++ {
+			enemyPosition := generateEnemyPosition(
+				rl.Vector2{
+					X: midPointX,
+					Y: midPointY,
+				},
+				100,
+				100,
+				500,
+			)
+			createEnemy(diamondTexture2D, enemyPosition)
 
-		enemy2 := Enemy{
-			id:            nextGameObjectId,
-			texture:       diamondTexture2D,
-			sourceRec:     rl.Rectangle{X: 0, Y: 0, Width: 50, Height: 50},
-			position:      rl.Vector2{X: midPointX - 500, Y: midPointY - 500},
-			color:         rl.Red,
-			movementSpeed: 5,
-			lastPlanVector: rl.Vector2{
-				X: 1,
-				Y: 0,
-			},
+			enemyPosition = generateEnemyPosition(
+				rl.Vector2{
+					X: midPointX,
+					Y: midPointY,
+				},
+				100,
+				100,
+				500,
+			)
+			createEnemy(diamondTexture2D, enemyPosition)
 		}
-		gameObjects[nextGameObjectId] = &enemy2
-		nextGameObjectId++
-
-		enemy3 := Enemy{
-			id:            nextGameObjectId,
-			texture:       diamondTexture2D,
-			sourceRec:     rl.Rectangle{X: 0, Y: 0, Width: 50, Height: 50},
-			position:      rl.Vector2{X: midPointX + 250, Y: midPointY + 250},
-			color:         rl.Red,
-			movementSpeed: 5,
-			lastPlanVector: rl.Vector2{
-				X: 0,
-				Y: 0,
-			},
-		}
-		gameObjects[nextGameObjectId] = &enemy3
-		nextGameObjectId++
 
 		for !rl.WindowShouldClose() {
 			if rl.WindowShouldClose() {
@@ -189,6 +168,49 @@ func createBullet(diamondTexture2D rl.Texture2D, mousePosition rl.Vector2, playe
 		gameObjects[nextGameObjectId] = &bullet
 		nextGameObjectId++
 	}
+}
+
+func createEnemy(enemyTexture rl.Texture2D, generatePosition rl.Vector2) {
+	bullet := Enemy{
+		id:               nextGameObjectId,
+		texture:          enemyTexture,
+		sourceRec:        rl.Rectangle{X: 0, Y: 0, Width: 100, Height: 100},
+		position:         generatePosition,
+		color:            rl.Red,
+		movementSpeed:    0,
+		lastPlanVector:   rl.Vector2{},
+		plan:             0,
+		movePlan:         0,
+		lastPlanInitTime: time.Now(),
+		lastPlanDuration: time.Duration(1),
+	}
+	gameObjects[nextGameObjectId] = &bullet
+	nextGameObjectId++
+}
+
+func generateEnemyPosition(playerCenter rl.Vector2, enemyWidth, enemyHeight, minDistance float32) rl.Vector2 {
+	screenWidth := float32(rl.GetScreenWidth())
+	screenHeight := float32(rl.GetScreenHeight())
+	var pos rl.Vector2
+
+	for {
+		pos.X = rand.Float32() * (screenWidth - enemyWidth)
+		pos.Y = rand.Float32() * (screenHeight - enemyHeight)
+
+		enemyCenter := rl.Vector2{
+			X: pos.X + enemyWidth/2,
+			Y: pos.Y + enemyHeight/2,
+		}
+
+		dx := enemyCenter.X - playerCenter.X
+		dy := enemyCenter.Y - playerCenter.Y
+		distance := float32(math.Sqrt(float64(dx*dx + dy*dy)))
+
+		if distance >= minDistance {
+			break
+		}
+	}
+	return pos
 }
 
 func playerMovement(player *Player) {
