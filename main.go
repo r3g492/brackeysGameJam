@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"math"
 	"strconv"
 	"time"
 )
@@ -39,7 +40,7 @@ func main() {
 	player := Player{
 		id:            0,
 		texture:       diamondTexture2D,
-		sourceRec:     rl.Rectangle{X: 0, Y: 0, Width: 100, Height: 100},
+		sourceRec:     rl.Rectangle{X: 0, Y: 0, Width: 50, Height: 50},
 		position:      rl.Vector2{X: midPointX, Y: midPointY},
 		color:         rl.Black,
 		movementSpeed: 5,
@@ -77,10 +78,14 @@ func main() {
 		enemy1 := Enemy{
 			id:            nextGameObjectId,
 			texture:       diamondTexture2D,
-			sourceRec:     rl.Rectangle{X: 0, Y: 0, Width: 100, Height: 100},
+			sourceRec:     rl.Rectangle{X: 0, Y: 0, Width: 50, Height: 50},
 			position:      rl.Vector2{X: midPointX + 500, Y: midPointY + 500},
 			color:         rl.Red,
 			movementSpeed: 5,
+			vector: rl.Vector2{
+				X: 0,
+				Y: 0,
+			},
 		}
 		gameObjects[nextGameObjectId] = &enemy1
 		nextGameObjectId++
@@ -88,10 +93,14 @@ func main() {
 		enemy2 := Enemy{
 			id:            nextGameObjectId,
 			texture:       diamondTexture2D,
-			sourceRec:     rl.Rectangle{X: 0, Y: 0, Width: 100, Height: 100},
+			sourceRec:     rl.Rectangle{X: 0, Y: 0, Width: 50, Height: 50},
 			position:      rl.Vector2{X: midPointX - 500, Y: midPointY - 500},
 			color:         rl.Red,
 			movementSpeed: 5,
+			vector: rl.Vector2{
+				X: 1,
+				Y: 0,
+			},
 		}
 		gameObjects[nextGameObjectId] = &enemy2
 		nextGameObjectId++
@@ -99,10 +108,14 @@ func main() {
 		enemy3 := Enemy{
 			id:            nextGameObjectId,
 			texture:       diamondTexture2D,
-			sourceRec:     rl.Rectangle{X: 0, Y: 0, Width: 100, Height: 100},
+			sourceRec:     rl.Rectangle{X: 0, Y: 0, Width: 50, Height: 50},
 			position:      rl.Vector2{X: midPointX + 250, Y: midPointY + 250},
 			color:         rl.Red,
 			movementSpeed: 5,
+			vector: rl.Vector2{
+				X: 0,
+				Y: 0,
+			},
 		}
 		gameObjects[nextGameObjectId] = &enemy3
 		nextGameObjectId++
@@ -134,16 +147,45 @@ func main() {
 				return
 			}
 
-			if rl.IsMouseButtonDown(rl.MouseLeftButton) {
+			if rl.IsMouseButtonPressed(rl.MouseLeftButton) {
 				rl.PlaySound(gunShot)
 				isMouseOverEnemy(rl.GetMousePosition())
+				createBullet(diamondTexture2D, rl.GetMousePosition(), player)
 			}
-
+			bulletCollisionCheck()
 			rl.BeginDrawing()
 			rl.ClearBackground(rl.RayWhite)
+			MoveGameObjects()
 			DrawGameObjects()
 			rl.EndDrawing()
 		}
+	}
+}
+
+func createBullet(diamondTexture2D rl.Texture2D, mousePosition rl.Vector2, player Player) {
+	dx := mousePosition.X - player.position.X
+	dy := mousePosition.Y - player.position.Y
+	distance := float32(math.Sqrt(float64(dx*dx + dy*dy)))
+	if distance != 0 {
+		unitX := dx / distance
+		unitY := dy / distance
+		bulletSpeed := float32(50)
+		bulletVector := rl.Vector2{
+			X: unitX * bulletSpeed,
+			Y: unitY * bulletSpeed,
+		}
+
+		bullet := Bullet{
+			id:            nextGameObjectId,
+			texture:       diamondTexture2D, // You can load a dedicated bullet texture if needed.
+			sourceRec:     rl.Rectangle{X: 0, Y: 0, Width: 20, Height: 20},
+			position:      player.position,
+			color:         rl.Yellow,
+			movementSpeed: bulletSpeed,
+			vector:        bulletVector,
+		}
+		gameObjects[nextGameObjectId] = &bullet
+		nextGameObjectId++
 	}
 }
 
@@ -373,13 +415,47 @@ func isMouseOverEnemy(mousePosition rl.Vector2) bool {
 			hitbox := obj.Hitbox()
 			if mousePosition.X >= hitbox.X && mousePosition.X <= hitbox.X+hitbox.Width &&
 				mousePosition.Y >= hitbox.Y && mousePosition.Y <= hitbox.Y+hitbox.Height {
-				fmt.Printf("shot checked!!!")
 				delete(gameObjects, key)
 				return true
 			}
 		}
 	}
 	return false
+}
+
+func bulletCollisionCheck() {
+	for bulletKey, bulletObj := range gameObjects {
+		if bulletObj.IsBullet() {
+			bulletHitbox := bulletObj.Hitbox()
+
+			if bulletHitbox.X < 0 || bulletHitbox.Y < 0 ||
+				bulletHitbox.X > 5000 || bulletHitbox.Y > 5000 {
+				delete(gameObjects, bulletKey)
+			}
+
+			for enemyKey, enemyObj := range gameObjects {
+				if bulletKey == enemyKey {
+					continue
+				}
+				if enemyObj.IsEnemy() {
+					enemyHitbox := enemyObj.Hitbox()
+					if bulletHitbox.X < enemyHitbox.X+enemyHitbox.Width &&
+						bulletHitbox.X+bulletHitbox.Width > enemyHitbox.X &&
+						bulletHitbox.Y < enemyHitbox.Y+enemyHitbox.Height &&
+						bulletHitbox.Y+bulletHitbox.Height > enemyHitbox.Y {
+						delete(gameObjects, bulletKey)
+						delete(gameObjects, enemyKey)
+					}
+				}
+			}
+		}
+	}
+}
+
+func MoveGameObjects() {
+	for _, obj := range gameObjects {
+		obj.Move()
+	}
 }
 
 func DrawGameObjects() {
@@ -392,7 +468,9 @@ type GameObject interface {
 	Draw()
 	GameObjectId() int
 	IsEnemy() bool
+	IsBullet() bool
 	Hitbox() rl.Rectangle
+	Move()
 }
 
 type Timer struct {
@@ -461,6 +539,10 @@ func (b *Button) IsEnemy() bool {
 	return false
 }
 
+func (b *Button) IsBullet() bool {
+	return false
+}
+
 func (b *Button) CheckInput(
 	mousePosition rl.Vector2,
 ) bool {
@@ -493,6 +575,10 @@ func (b *Button) Hitbox() rl.Rectangle {
 	return b.sourceRec
 }
 
+func (b *Button) Move() {
+	return
+}
+
 type Player struct {
 	id            int
 	texture       rl.Texture2D
@@ -519,8 +605,15 @@ func (p *Player) IsEnemy() bool {
 	return false
 }
 
+func (p *Player) IsBullet() bool {
+	return false
+}
+
 func (p *Player) Hitbox() rl.Rectangle {
 	return p.sourceRec
+}
+
+func (p *Player) Move() {
 }
 
 type Enemy struct {
@@ -530,6 +623,7 @@ type Enemy struct {
 	position      rl.Vector2
 	color         rl.Color
 	movementSpeed float32
+	vector        rl.Vector2
 }
 
 func (e *Enemy) Draw() {
@@ -556,6 +650,60 @@ func (e *Enemy) GameObjectId() int {
 
 func (e *Enemy) IsEnemy() bool {
 	return true
+}
+
+func (e *Enemy) IsBullet() bool {
+	return false
+}
+
+func (e *Enemy) Move() {
+	e.position.X += e.vector.X
+	e.position.Y += e.vector.Y
+}
+
+type Bullet struct {
+	id            int
+	texture       rl.Texture2D
+	sourceRec     rl.Rectangle
+	position      rl.Vector2
+	color         rl.Color
+	movementSpeed float32
+	vector        rl.Vector2
+}
+
+func (b *Bullet) Draw() {
+	rl.DrawTextureRec(
+		b.texture,
+		b.sourceRec,
+		b.position,
+		b.color,
+	)
+}
+
+func (b *Bullet) Hitbox() rl.Rectangle {
+	return rl.Rectangle{
+		X:      b.position.X,
+		Y:      b.position.Y,
+		Width:  b.sourceRec.Width,
+		Height: b.sourceRec.Height,
+	}
+}
+
+func (b *Bullet) GameObjectId() int {
+	return b.id
+}
+
+func (b *Bullet) IsEnemy() bool {
+	return false
+}
+
+func (b *Bullet) IsBullet() bool {
+	return true
+}
+
+func (b *Bullet) Move() {
+	b.position.X += b.vector.X
+	b.position.Y += b.vector.Y
 }
 
 func raylibWindowMidPoint(elementWidth float32, elementHeight float32) (midX float32, midY float32) {
