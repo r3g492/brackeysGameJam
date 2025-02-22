@@ -1,20 +1,64 @@
 package main
 
 import (
+	"embed"
 	"fmt"
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"log"
 	"math"
 	"math/rand"
+	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 )
+
+//go:embed resources/*
+var resFS embed.FS
 
 var (
 	gameObjects                = make(map[int]GameObject)
 	nextGameObjectId int       = 0
 	lastShotFired    time.Time = time.Now()
 	stageEnd                   = 20
+	minDistance      float32   = 1000
 )
+
+func LoadTextureFromEmbedded(filename string) rl.Texture2D {
+	data, err := resFS.ReadFile("resources/" + filename)
+	if err != nil {
+		log.Fatalf("failed to read embedded file %s: %v", filename, err)
+	}
+	ext := filepath.Ext(filename)
+	img := rl.LoadImageFromMemory(ext, data, int32(len(data)))
+	if img.Width == 0 {
+		log.Fatalf("failed to load image %s from embedded data", filename)
+	}
+	tex := rl.LoadTextureFromImage(img)
+	rl.UnloadImage(img)
+	return tex
+}
+
+func LoadSoundFromEmbedded(filename string) rl.Sound {
+	data, err := resFS.ReadFile("resources/" + filename)
+	if err != nil {
+		log.Fatalf("failed to read embedded sound %s: %v", filename, err)
+	}
+	tmpFile, err := os.CreateTemp("", "*.mp3")
+	if err != nil {
+		log.Fatalf("failed to create temporary file for %s: %v", filename, err)
+	}
+	_, err = tmpFile.Write(data)
+	if err != nil {
+		log.Fatalf("failed to write to temporary file for %s: %v", filename, err)
+	}
+	tmpFile.Close()
+	if err != nil {
+		log.Fatalf("failed to rename temporary file: %v", err)
+	}
+	snd := rl.LoadSound(tmpFile.Name())
+	return snd
+}
 
 func main() {
 	display := rl.GetCurrentMonitor()
@@ -22,7 +66,7 @@ func main() {
 	userMonitorHeight := rl.GetMonitorHeight(display)
 	screenWidth := int32(userMonitorWidth)
 	screenHeight := int32(userMonitorHeight)
-	rl.InitWindow(screenWidth, screenHeight, "Electric.")
+	rl.InitWindow(screenWidth, screenHeight, "The Cold Killer")
 	rl.MaximizeWindow()
 	if !rl.IsWindowFullscreen() {
 		rl.ToggleFullscreen()
@@ -32,33 +76,37 @@ func main() {
 	rl.InitAudioDevice()
 	rl.SetTargetFPS(60)
 
-	buttonTexture2D := rl.LoadTexture("resources/button.png")
-	startTexture2D := rl.LoadTexture("resources/start.png")
+	buttonTexture2D := LoadTextureFromEmbedded("button.png")
+	startTexture2D := LoadTextureFromEmbedded("start.png")
 	if !startButtonScreen(buttonTexture2D, display, startTexture2D) {
 		return
 	}
 
-	diamondTexture2D := rl.LoadTexture("resources/diamond.png")
+	diamondTexture2D := LoadTextureFromEmbedded("diamond.png")
 	midPointX, midPointY := raylibWindowMidPoint(100, 100)
 	player := Player{
 		id:            0,
 		texture:       diamondTexture2D,
-		sourceRec:     rl.Rectangle{X: 0, Y: 0, Width: 50, Height: 50},
+		sourceRec:     rl.Rectangle{X: 0, Y: 0, Width: 30, Height: 30},
 		position:      rl.Vector2{X: midPointX, Y: midPointY},
 		color:         rl.Black,
-		movementSpeed: 11,
+		movementSpeed: 15,
 	}
 	gameObjects[0] = &player
 	nextGameObjectId = 1
 
 	// https://pixabay.com/music/trap-spinning-head-271171/
-	bgm := rl.LoadSound("resources/spinning-head-271171.mp3")
+	bgm := LoadSoundFromEmbedded("spinning-head-271171.mp3")
 	// https://pixabay.com/sound-effects/you-lose-game-sound-230514/
-	loseSound := rl.LoadSound("resources/you-lose-game-sound-230514.mp3")
+	loseSound := LoadSoundFromEmbedded("you-lose-game-sound-230514.mp3")
 	// https://pixabay.com/sound-effects/game-bonus-2-294436/
-	winSound := rl.LoadSound("resources/game-bonus-2-294436.mp3")
+	winSound := LoadSoundFromEmbedded("game-bonus-2-294436.mp3")
+	// https://pixabay.com/sound-effects/shotgun-03-38220/
+	gunShot := LoadSoundFromEmbedded("shotgun-03-38220.mp3")
+	// https://pixabay.com/sound-effects/female-vocal-321-countdown-240912/
+	countdownSound := LoadSoundFromEmbedded("female-vocal-321-countdown-240912.mp3")
+
 	rl.PlaySound(bgm)
-	gunShot := rl.LoadSound("resources/shotgun-03-38220.mp3")
 	stageIdx := 0
 
 	gameTimer := Timer{
@@ -73,8 +121,6 @@ func main() {
 			rl.PlaySound(bgm)
 		}
 
-		// https://pixabay.com/sound-effects/female-vocal-321-countdown-240912/
-		countdownSound := rl.LoadSound("resources/female-vocal-321-countdown-240912.mp3")
 		countdown(countdownSound, display, strconv.Itoa(stageIdx+1))
 
 		player.position.X = midPointX
@@ -89,7 +135,7 @@ func main() {
 				},
 				100,
 				100,
-				1000,
+				minDistance,
 			)
 			createEnemy(diamondTexture2D, enemyPosition)
 		}
@@ -308,6 +354,15 @@ func startButtonScreen(
 			rl.Gray,
 		)
 		button.Draw()
+		rl.DrawText(
+			fmt.Sprintf(
+				"The Cold Killer",
+			),
+			int32(rl.GetMonitorWidth(display)/2-400),
+			int32(rl.GetMonitorHeight(display)/2-400),
+			120,
+			rl.Black,
+		)
 		rl.EndDrawing()
 	}
 	return false
@@ -747,19 +802,19 @@ func (e *Enemy) resetPlan() {
 	nextPlan := rand.Intn(4)
 	if e.plan == nextPlan {
 		nextPlan = rand.Intn(4)
-		e.lastPlanDuration = time.Duration(2000) * time.Millisecond
+		e.lastPlanDuration = time.Duration(1000) * time.Millisecond
 	}
 	e.plan = nextPlan
 
 	if e.plan == 2 {
 		e.movePlan = rand.Intn(8)
-		e.lastPlanDuration = time.Duration(100) * time.Millisecond
+		e.lastPlanDuration = time.Duration(500) * time.Millisecond
 	} else {
 		e.movePlan = 0
 		e.lastPlanDuration = time.Duration(50) * time.Millisecond
 	}
 
-	e.movementSpeed = float32(rand.Intn(10) + 5)
+	e.movementSpeed = float32(rand.Intn(15) + 3)
 	if e.plan == 3 {
 		e.movementSpeed += 5
 		e.lastPlanDuration = time.Duration(500) * time.Millisecond
