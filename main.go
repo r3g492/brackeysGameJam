@@ -10,8 +10,10 @@ import (
 )
 
 var (
-	gameObjects          = make(map[int]GameObject)
-	nextGameObjectId int = 0
+	gameObjects                = make(map[int]GameObject)
+	nextGameObjectId int       = 0
+	lastShotFired    time.Time = time.Now()
+	stageEnd                   = 20
 )
 
 func main() {
@@ -44,7 +46,7 @@ func main() {
 		sourceRec:     rl.Rectangle{X: 0, Y: 0, Width: 50, Height: 50},
 		position:      rl.Vector2{X: midPointX, Y: midPointY},
 		color:         rl.Black,
-		movementSpeed: 5,
+		movementSpeed: 11,
 	}
 	gameObjects[0] = &player
 	nextGameObjectId = 1
@@ -58,7 +60,6 @@ func main() {
 	rl.PlaySound(bgm)
 	gunShot := rl.LoadSound("resources/shotgun-03-38220.mp3")
 	stageIdx := 0
-	stageEnd := 30
 
 	gameTimer := Timer{
 		time.Now(),
@@ -74,7 +75,7 @@ func main() {
 
 		// https://pixabay.com/sound-effects/female-vocal-321-countdown-240912/
 		countdownSound := rl.LoadSound("resources/female-vocal-321-countdown-240912.mp3")
-		countdown(countdownSound, display, fmt.Sprintf("stage %s", strconv.Itoa(stageIdx+1)))
+		countdown(countdownSound, display, strconv.Itoa(stageIdx+1))
 
 		player.position.X = midPointX
 		player.position.Y = midPointY
@@ -88,18 +89,7 @@ func main() {
 				},
 				100,
 				100,
-				500,
-			)
-			createEnemy(diamondTexture2D, enemyPosition)
-
-			enemyPosition = generateEnemyPosition(
-				rl.Vector2{
-					X: midPointX,
-					Y: midPointY,
-				},
-				100,
-				100,
-				500,
+				1000,
 			)
 			createEnemy(diamondTexture2D, enemyPosition)
 		}
@@ -137,12 +127,15 @@ func main() {
 			}
 
 			if rl.IsMouseButtonPressed(rl.MouseLeftButton) {
-				rl.PlaySound(gunShot)
-				createBullet(diamondTexture2D, rl.GetMousePosition(), player)
+				if time.Since(lastShotFired) > time.Duration(200)*time.Millisecond {
+					lastShotFired = time.Now()
+					rl.PlaySound(gunShot)
+					createBullet(diamondTexture2D, rl.GetMousePosition(), player)
+				}
 			}
 			bulletCollisionCheck()
 			rl.BeginDrawing()
-			rl.ClearBackground(rl.LightGray)
+			rl.ClearBackground(rl.DarkGray)
 			EnemyPlan(player)
 			MoveGameObjects()
 			DrawGameObjects()
@@ -179,7 +172,7 @@ func createBullet(diamondTexture2D rl.Texture2D, mousePosition rl.Vector2, playe
 }
 
 func createEnemy(enemyTexture rl.Texture2D, generatePosition rl.Vector2) {
-	bullet := Enemy{
+	enemy := Enemy{
 		id:               nextGameObjectId,
 		texture:          enemyTexture,
 		sourceRec:        rl.Rectangle{X: 0, Y: 0, Width: 100, Height: 100},
@@ -191,8 +184,9 @@ func createEnemy(enemyTexture rl.Texture2D, generatePosition rl.Vector2) {
 		movePlan:         0,
 		lastPlanInitTime: time.Now(),
 		lastPlanDuration: time.Duration(100) * time.Millisecond,
+		planSet:          false,
 	}
-	gameObjects[nextGameObjectId] = &bullet
+	gameObjects[nextGameObjectId] = &enemy
 	nextGameObjectId++
 }
 
@@ -424,11 +418,12 @@ func countdown(countdownSound rl.Sound, display int, stageName string) {
 
 		rl.DrawText(
 			fmt.Sprintf(
-				"Be Ready for %s",
+				"%s / %s",
 				stageName,
+				strconv.Itoa(stageEnd),
 			),
-			int32(rl.GetMonitorWidth(display)/2-300),
-			int32(rl.GetMonitorHeight(display)/2-300),
+			int32(rl.GetMonitorWidth(display)/2-100),
+			int32(rl.GetMonitorHeight(display)/2-100),
 			100,
 			rl.Black,
 		)
@@ -745,29 +740,33 @@ type Enemy struct {
 	movePlan         int
 	lastPlanInitTime time.Time
 	lastPlanDuration time.Duration
+	planSet          bool
 }
 
 func (e *Enemy) resetPlan() {
 	nextPlan := rand.Intn(4)
 	if e.plan == nextPlan {
 		nextPlan = rand.Intn(4)
+		e.lastPlanDuration = time.Duration(2000) * time.Millisecond
 	}
 	e.plan = nextPlan
 
 	if e.plan == 2 {
 		e.movePlan = rand.Intn(8)
+		e.lastPlanDuration = time.Duration(100) * time.Millisecond
 	} else {
 		e.movePlan = 0
+		e.lastPlanDuration = time.Duration(50) * time.Millisecond
 	}
 
-	e.movementSpeed = float32(rand.Intn(5) + 5)
+	e.movementSpeed = float32(rand.Intn(10) + 5)
 	if e.plan == 3 {
 		e.movementSpeed += 5
+		e.lastPlanDuration = time.Duration(500) * time.Millisecond
 	}
 
 	e.lastPlanInitTime = time.Now()
-	// e.lastPlanDuration = time.Duration(rand.Intn(3)+1) * time.Second
-	e.lastPlanDuration = time.Duration(1) * time.Second
+	e.planSet = false
 }
 
 func (e *Enemy) invokeRush() {
@@ -777,6 +776,7 @@ func (e *Enemy) invokeRush() {
 
 	e.lastPlanInitTime = time.Now()
 	e.lastPlanDuration = time.Duration(rand.Intn(3)+1) * time.Second
+	e.planSet = false
 }
 
 func (e *Enemy) isPlanOver() bool {
@@ -842,6 +842,9 @@ func (e *Enemy) EnemyPlan(player Player) {
 		}
 	}
 
+	if e.planSet {
+		return
+	}
 	switch e.plan {
 	case 0:
 		e.lastPlanVector = rl.Vector2{X: 0, Y: 0}
@@ -908,6 +911,7 @@ func (e *Enemy) EnemyPlan(player Player) {
 	default:
 		e.lastPlanVector = rl.Vector2{X: 0, Y: 0}
 	}
+	e.planSet = true
 }
 
 func (e *Enemy) PrevPosition() rl.Vector2 {
