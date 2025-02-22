@@ -54,7 +54,7 @@ func main() {
 	rl.PlaySound(bgm)
 	gunShot := rl.LoadSound("resources/shotgun-03-38220.mp3")
 	stageIdx := 0
-	stageEnd := 3
+	stageEnd := 5
 
 	gameTimer := Timer{
 		time.Now(),
@@ -242,6 +242,13 @@ func playerDeathCheck(player *Player) bool {
 				return true
 			}
 		}
+	}
+
+	screenWidth := rl.GetScreenWidth()
+	screenHeight := rl.GetScreenHeight()
+	if playerHitbox.X+playerHitbox.Width < 0 || playerHitbox.X > float32(screenWidth) ||
+		playerHitbox.Y+playerHitbox.Height < 0 || playerHitbox.Y > float32(screenHeight) {
+		return true
 	}
 	return false
 }
