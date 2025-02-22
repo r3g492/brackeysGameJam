@@ -89,7 +89,12 @@ func main() {
 	startTexture2D, _ := LoadTextureFromEmbedded("start.png", 1600, 900)
 	simpleTexture, _ := LoadTextureFromEmbedded("diamond.png", -1, -1)
 	enemyTexture, _ := LoadTextureFromEmbedded("enemy.png", 100, 100)
-	background, _ := LoadTextureFromEmbedded("snow.png", screenWidth, screenHeight)
+	backgroundTexture, _ := LoadTextureFromEmbedded("snow.png", screenWidth, screenHeight)
+
+	playerBackTexture, _ := LoadTextureFromEmbedded("Hero_back.png", 200, 200)
+	playerFrontTexture, _ := LoadTextureFromEmbedded("Hero_front.png", 200, 200)
+	playerLeftTexture, _ := LoadTextureFromEmbedded("Hero_left.png", 200, 200)
+	playerRightTexture, _ := LoadTextureFromEmbedded("Hero_right.png", 200, 200)
 	if !startButtonScreen(buttonTexture2D, display, startTexture2D) {
 		return
 	}
@@ -102,6 +107,11 @@ func main() {
 		position:      rl.Vector2{X: midPointX, Y: midPointY},
 		color:         rl.Black,
 		movementSpeed: 15,
+		backTexture:   playerBackTexture,
+		frontTexture:  playerFrontTexture,
+		leftTexture:   playerLeftTexture,
+		rightTexture:  playerRightTexture,
+		movement:      0,
 	}
 	gameObjects[0] = &player
 	nextGameObjectId = 1
@@ -195,7 +205,7 @@ func main() {
 			rl.BeginDrawing()
 			rl.ClearBackground(rl.DarkGray)
 			rl.DrawTexture(
-				background,
+				backgroundTexture,
 				0,
 				0,
 				rl.Color{
@@ -333,15 +343,19 @@ func playerMovement(player *Player) {
 
 	if isUpPressed {
 		player.position.Y = player.position.Y - dividedMovementSpeed
+		player.movement = 2
 	}
 	if isLeftPressed {
 		player.position.X = player.position.X - dividedMovementSpeed
+		player.movement = 3
 	}
 	if isDownPressed {
 		player.position.Y = player.position.Y + dividedMovementSpeed
+		player.movement = 0
 	}
 	if isRightPressed {
 		player.position.X = player.position.X + dividedMovementSpeed
+		player.movement = 1
 	}
 }
 
@@ -525,7 +539,7 @@ func countdown(countdownSound rl.Sound, display int, stageName string) {
 				stageName,
 				strconv.Itoa(stageEnd),
 			),
-			int32(rl.GetMonitorWidth(display)/2-100),
+			int32(rl.GetMonitorWidth(display)/2-150),
 			int32(rl.GetMonitorHeight(display)/2-100),
 			100,
 			rl.Black,
@@ -807,14 +821,61 @@ type Player struct {
 	position      rl.Vector2
 	color         rl.Color
 	movementSpeed float32
+	backTexture   rl.Texture2D
+	frontTexture  rl.Texture2D
+	leftTexture   rl.Texture2D
+	rightTexture  rl.Texture2D
+	// 0: front 1: right 2: back 3: left
+	movement int
 }
 
 func (p *Player) Draw() {
+	mousePosition := rl.GetMousePosition()
+	playerPosition := p.position
+	playerToMouseVector := rl.Vector2{
+		X: mousePosition.X - playerPosition.X,
+		Y: mousePosition.Y - playerPosition.Y,
+	}
+
+	// Calculate the angle (in degrees) of the vector from the player to the mouse
+	angle := math.Atan2(float64(playerToMouseVector.Y), float64(playerToMouseVector.X)) * (180 / math.Pi)
+	if angle < 0 {
+		angle += 360
+	}
+
+	var texture rl.Texture2D
+
+	// Define quadrants:
+	// Bottom (frontTexture): 45° to 135°   [mouse is below the player]
+	// Left   (leftTexture): 135° to 225°    [mouse is left of the player]
+	// Top    (backTexture): 225° to 315°    [mouse is above the player]
+	// Right  (rightTexture): otherwise      [mouse is right of the player]
+	if angle >= 45 && angle < 135 {
+		texture = p.frontTexture
+	} else if angle >= 135 && angle < 225 {
+		texture = p.leftTexture
+	} else if angle >= 225 && angle < 315 {
+		texture = p.backTexture
+	} else {
+		texture = p.rightTexture
+	}
+
+	// Calculate texture drawing position (adjust as needed)
+	textureWidth := float32(texture.Width)
+	textureHeight := float32(texture.Height)
+	texturePosition := rl.Vector2{
+		X: p.position.X - textureWidth/3,
+		Y: p.position.Y - textureHeight/3,
+	}
+
 	rl.DrawTextureRec(
-		p.texture,
-		p.sourceRec,
-		p.position,
-		p.color,
+		texture,
+		rl.Rectangle{
+			Width:  textureWidth,
+			Height: textureHeight,
+		},
+		texturePosition,
+		rl.White, // white color means no tint
 	)
 }
 
