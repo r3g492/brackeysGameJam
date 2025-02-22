@@ -91,10 +91,10 @@ func main() {
 	enemyTexture, _ := LoadTextureFromEmbedded("enemy.png", 100, 100)
 	backgroundTexture, _ := LoadTextureFromEmbedded("snow.png", screenWidth, screenHeight)
 
-	playerBackTexture, _ := LoadTextureFromEmbedded("Hero_back.png", 200, 200)
-	playerFrontTexture, _ := LoadTextureFromEmbedded("Hero_front.png", 200, 200)
-	playerLeftTexture, _ := LoadTextureFromEmbedded("Hero_left.png", 200, 200)
-	playerRightTexture, _ := LoadTextureFromEmbedded("Hero_right.png", 200, 200)
+	playerBackTexture, _ := LoadTextureFromEmbedded("Hero_back.png", 100, 100)
+	playerFrontTexture, _ := LoadTextureFromEmbedded("Hero_front.png", 100, 100)
+	playerLeftTexture, _ := LoadTextureFromEmbedded("Hero_left.png", 100, 100)
+	playerRightTexture, _ := LoadTextureFromEmbedded("Hero_right.png", 100, 100)
 	if !startButtonScreen(buttonTexture2D, display, startTexture2D) {
 		return
 	}
