@@ -43,27 +43,69 @@ func main() {
 	}
 
 	diamondTexture2D := rl.LoadTexture("resources/diamond.png")
-	diamond := Diamond{
-		id:        nextGameObjectId,
-		texture:   diamondTexture2D,
-		sourceRec: rl.Rectangle{X: 0, Y: 0, Width: 200, Height: 200},
-		position:  rl.Vector2{X: 200, Y: 300},
-		color:     rl.Blue,
+	midPointX, midPointY := raylibWindowMidPoint(100, 100)
+	player := Player{
+		id:            0,
+		texture:       diamondTexture2D,
+		sourceRec:     rl.Rectangle{X: 0, Y: 0, Width: 100, Height: 100},
+		position:      rl.Vector2{X: midPointX, Y: midPointY},
+		color:         rl.Black,
+		movementSpeed: 5,
 	}
-	nextGameObjectId++
-	gameObjects[diamond.id] = &diamond
+	gameObjects[0] = &player
+	nextGameObjectId = 1
+
 	// https://pixabay.com/music/trap-spinning-head-271171/
 	bgm := rl.LoadSound("resources/spinning-head-271171.mp3")
 	rl.PlaySound(bgm)
 	gunShot := rl.LoadSound("resources/shotgun-03-38220.mp3")
-	for i := 0; i < 30; i++ {
+	stageIdx := 0
+	stageEnd := 30
+	for ; stageIdx < stageEnd; stageIdx++ {
 		if !rl.IsSoundPlaying(bgm) {
 			rl.PlaySound(bgm)
 		}
 
 		// https://pixabay.com/sound-effects/female-vocal-321-countdown-240912/
 		countdownSound := rl.LoadSound("resources/female-vocal-321-countdown-240912.mp3")
-		countdown(countdownSound, display, fmt.Sprintf("stage %s", strconv.Itoa(i+1)))
+		countdown(countdownSound, display, fmt.Sprintf("stage %s", strconv.Itoa(stageIdx+1)))
+
+		player.position.X = midPointX
+		player.position.Y = midPointY
+
+		// create enemy
+		enemy1 := Enemy{
+			id:            nextGameObjectId,
+			texture:       diamondTexture2D,
+			sourceRec:     rl.Rectangle{X: 0, Y: 0, Width: 100, Height: 100},
+			position:      rl.Vector2{X: midPointX + 500, Y: midPointY + 500},
+			color:         rl.Red,
+			movementSpeed: 5,
+		}
+		gameObjects[nextGameObjectId] = &enemy1
+		nextGameObjectId++
+
+		enemy2 := Enemy{
+			id:            nextGameObjectId,
+			texture:       diamondTexture2D,
+			sourceRec:     rl.Rectangle{X: 0, Y: 0, Width: 100, Height: 100},
+			position:      rl.Vector2{X: midPointX - 500, Y: midPointY - 500},
+			color:         rl.Red,
+			movementSpeed: 5,
+		}
+		gameObjects[nextGameObjectId] = &enemy2
+		nextGameObjectId++
+
+		enemy3 := Enemy{
+			id:            nextGameObjectId,
+			texture:       diamondTexture2D,
+			sourceRec:     rl.Rectangle{X: 0, Y: 0, Width: 100, Height: 100},
+			position:      rl.Vector2{X: midPointX + 250, Y: midPointY + 250},
+			color:         rl.Red,
+			movementSpeed: 5,
+		}
+		gameObjects[nextGameObjectId] = &enemy3
+		nextGameObjectId++
 
 		for !rl.WindowShouldClose() {
 			if rl.WindowShouldClose() {
@@ -72,31 +114,29 @@ func main() {
 
 			printYourTime(gameTimer)
 
+			if hasWonStage() {
+				// go to victory screen
+				break
+			}
+
 			if hasWon() {
 				calculateScore()
 				showScore()
 			}
 
-			staticId := -1
-			if rl.IsKeyDown(rl.KeyS) {
-				newDiamond := Diamond{
-					id:        staticId,
-					texture:   diamondTexture2D,
-					sourceRec: rl.Rectangle{X: 0, Y: 0, Width: 200, Height: 200},
-					position:  rl.Vector2{X: 500, Y: 500},
-					color:     rl.Blue,
+			playerMovement(&player)
+			if playerDeathCheck(&player) {
+				if gameOverScreen(buttonTexture2D, display, startTexture2D) {
+					// restart game
+					stageIdx = -1
+					break
 				}
-				gameObjects[staticId] = &newDiamond
-			} else {
-				delete(gameObjects, staticId)
-			}
-
-			if rl.IsKeyDown(rl.KeyD) {
-				break
+				return
 			}
 
 			if rl.IsMouseButtonDown(rl.MouseLeftButton) {
 				rl.PlaySound(gunShot)
+				isMouseOverEnemy(rl.GetMousePosition())
 			}
 
 			rl.BeginDrawing()
@@ -105,6 +145,61 @@ func main() {
 			rl.EndDrawing()
 		}
 	}
+}
+
+func playerMovement(player *Player) {
+	isUpPressed := rl.IsKeyDown(rl.KeyW)
+	isLeftPressed := rl.IsKeyDown(rl.KeyA)
+	isDownPressed := rl.IsKeyDown(rl.KeyS)
+	isRightPressed := rl.IsKeyDown(rl.KeyD)
+
+	var movementPressedKeyCount float32 = 0
+	if isUpPressed {
+		movementPressedKeyCount++
+	}
+	if isLeftPressed {
+		movementPressedKeyCount++
+	}
+	if isDownPressed {
+		movementPressedKeyCount++
+	}
+	if isRightPressed {
+		movementPressedKeyCount++
+	}
+
+	dividedMovementSpeed := player.movementSpeed / movementPressedKeyCount
+
+	if isUpPressed {
+		player.position.Y = player.position.Y - dividedMovementSpeed
+	}
+	if isLeftPressed {
+		player.position.X = player.position.X - dividedMovementSpeed
+	}
+	if isDownPressed {
+		player.position.Y = player.position.Y + dividedMovementSpeed
+	}
+	if isRightPressed {
+		player.position.X = player.position.X + dividedMovementSpeed
+	}
+}
+
+func playerDeathCheck(player *Player) bool {
+	playerHitbox := rl.Rectangle{
+		X:      player.position.X,
+		Y:      player.position.Y,
+		Width:  player.sourceRec.Width,
+		Height: player.sourceRec.Height,
+	}
+
+	for _, obj := range gameObjects {
+		if obj.IsEnemy() {
+			enemyHitbox := obj.Hitbox()
+			if rl.CheckCollisionRecs(playerHitbox, enemyHitbox) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func printYourTime(gameTimer Timer) {
@@ -156,6 +251,42 @@ func startButtonScreen(
 	return false
 }
 
+func gameOverScreen(
+	buttonTexture2D rl.Texture2D,
+	display int,
+	startTexture2D rl.Texture2D,
+) bool {
+	button := Button{
+		id:        -1,
+		texture:   buttonTexture2D,
+		sourceRec: rl.Rectangle{X: 0, Y: 0, Width: 220, Height: 100},
+		position: rl.Vector2{
+			X: float32(rl.GetMonitorWidth(display))/2 - 220/2,
+			Y: float32(rl.GetMonitorHeight(display))/2 - 220/2,
+		},
+		color:  rl.Red,
+		status: 0,
+	}
+
+	for !rl.WindowShouldClose() {
+		rl.BeginDrawing()
+		rl.ClearBackground(rl.DarkGray)
+		mousePoint := rl.GetMousePosition()
+		if button.CheckInput(mousePoint) {
+			return true
+		}
+		rl.DrawTextureRec(
+			startTexture2D,
+			rl.Rectangle{X: 0, Y: 0, Width: 1600, Height: 900},
+			rl.Vector2{X: float32(rl.GetMonitorWidth(display))/2 - 800, Y: float32(rl.GetMonitorHeight(display))/2 - 450},
+			rl.Gray,
+		)
+		button.Draw()
+		rl.EndDrawing()
+	}
+	return false
+}
+
 func countdown(countdownSound rl.Sound, display int, stageName string) {
 	beginTimer := Timer{}
 	beginTimer.Init()
@@ -182,6 +313,30 @@ func countdown(countdownSound rl.Sound, display int, stageName string) {
 	}
 }
 
+func hasWonStage() bool {
+	for _, obj := range gameObjects {
+		if obj.IsEnemy() {
+			return false
+		}
+	}
+	return true
+}
+
+func isMouseOverEnemy(mousePosition rl.Vector2) bool {
+	for key, obj := range gameObjects {
+		if obj.IsEnemy() {
+			hitbox := obj.Hitbox()
+			if mousePosition.X >= hitbox.X && mousePosition.X <= hitbox.X+hitbox.Width &&
+				mousePosition.Y >= hitbox.Y && mousePosition.Y <= hitbox.Y+hitbox.Height {
+				fmt.Printf("shot checked!!!")
+				delete(gameObjects, key)
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func hasWon() bool {
 	return false
 }
@@ -203,27 +358,8 @@ func DrawGameObjects() {
 type GameObject interface {
 	Draw()
 	GameObjectId() int
-}
-
-type Diamond struct {
-	id        int
-	texture   rl.Texture2D
-	sourceRec rl.Rectangle
-	position  rl.Vector2
-	color     rl.Color
-}
-
-func (d *Diamond) Draw() {
-	rl.DrawTextureRec(
-		d.texture,
-		d.sourceRec,
-		d.position,
-		d.color,
-	)
-}
-
-func (d *Diamond) GameObjectId() int {
-	return d.id
+	IsEnemy() bool
+	Hitbox() rl.Rectangle
 }
 
 type Timer struct {
@@ -261,6 +397,10 @@ func (b *Button) Draw() {
 	)
 }
 
+func (b *Button) IsEnemy() bool {
+	return false
+}
+
 func (b *Button) CheckInput(
 	mousePosition rl.Vector2,
 ) bool {
@@ -287,4 +427,78 @@ func (b *Button) CheckInput(
 
 func (b *Button) GameObjectId() int {
 	return b.id
+}
+
+func (b *Button) Hitbox() rl.Rectangle {
+	return b.sourceRec
+}
+
+type Player struct {
+	id            int
+	texture       rl.Texture2D
+	sourceRec     rl.Rectangle
+	position      rl.Vector2
+	color         rl.Color
+	movementSpeed float32
+}
+
+func (p *Player) Draw() {
+	rl.DrawTextureRec(
+		p.texture,
+		p.sourceRec,
+		p.position,
+		p.color,
+	)
+}
+
+func (p *Player) GameObjectId() int {
+	return p.id
+}
+
+func (p *Player) IsEnemy() bool {
+	return false
+}
+
+func (p *Player) Hitbox() rl.Rectangle {
+	return p.sourceRec
+}
+
+type Enemy struct {
+	id            int
+	texture       rl.Texture2D
+	sourceRec     rl.Rectangle
+	position      rl.Vector2
+	color         rl.Color
+	movementSpeed float32
+}
+
+func (e *Enemy) Draw() {
+	rl.DrawTextureRec(
+		e.texture,
+		e.sourceRec,
+		e.position,
+		e.color,
+	)
+}
+
+func (e *Enemy) Hitbox() rl.Rectangle {
+	return rl.Rectangle{
+		X:      e.position.X,
+		Y:      e.position.Y,
+		Width:  e.sourceRec.Width,
+		Height: e.sourceRec.Height,
+	}
+}
+
+func (e *Enemy) GameObjectId() int {
+	return e.id
+}
+
+func (e *Enemy) IsEnemy() bool {
+	return true
+}
+
+func raylibWindowMidPoint(elementWidth float32, elementHeight float32) (midX float32, midY float32) {
+	display := rl.GetCurrentMonitor()
+	return float32(rl.GetMonitorWidth(display))/2 - elementWidth/2, float32(rl.GetMonitorHeight(display))/2 - elementHeight/2
 }
