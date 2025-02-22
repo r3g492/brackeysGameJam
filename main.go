@@ -4,6 +4,7 @@ import (
 	"fmt"
 	rl "github.com/gen2brain/raylib-go/raylib"
 	"math"
+	"math/rand"
 	"strconv"
 	"time"
 )
@@ -82,7 +83,7 @@ func main() {
 			position:      rl.Vector2{X: midPointX + 500, Y: midPointY + 500},
 			color:         rl.Red,
 			movementSpeed: 5,
-			vector: rl.Vector2{
+			lastPlanVector: rl.Vector2{
 				X: 0,
 				Y: 0,
 			},
@@ -97,7 +98,7 @@ func main() {
 			position:      rl.Vector2{X: midPointX - 500, Y: midPointY - 500},
 			color:         rl.Red,
 			movementSpeed: 5,
-			vector: rl.Vector2{
+			lastPlanVector: rl.Vector2{
 				X: 1,
 				Y: 0,
 			},
@@ -112,7 +113,7 @@ func main() {
 			position:      rl.Vector2{X: midPointX + 250, Y: midPointY + 250},
 			color:         rl.Red,
 			movementSpeed: 5,
-			vector: rl.Vector2{
+			lastPlanVector: rl.Vector2{
 				X: 0,
 				Y: 0,
 			},
@@ -142,6 +143,7 @@ func main() {
 					// restart game
 					stageIdx = -1
 					gameTimer.Init()
+					CleanAllEnemyAndBullet()
 					break
 				}
 				return
@@ -153,7 +155,8 @@ func main() {
 			}
 			bulletCollisionCheck()
 			rl.BeginDrawing()
-			rl.ClearBackground(rl.RayWhite)
+			rl.ClearBackground(rl.LightGray)
+			EnemyPlan(player)
 			MoveGameObjects()
 			DrawGameObjects()
 			rl.EndDrawing()
@@ -177,7 +180,7 @@ func createBullet(diamondTexture2D rl.Texture2D, mousePosition rl.Vector2, playe
 		bullet := Bullet{
 			id:            nextGameObjectId,
 			texture:       diamondTexture2D,
-			sourceRec:     rl.Rectangle{X: 0, Y: 0, Width: 20, Height: 20},
+			sourceRec:     rl.Rectangle{X: 0, Y: 0, Width: 10, Height: 10},
 			position:      player.position,
 			color:         rl.Yellow,
 			movementSpeed: bulletSpeed,
@@ -490,6 +493,22 @@ func DrawGameObjects() {
 	}
 }
 
+func EnemyPlan(player Player) {
+	for _, obj := range gameObjects {
+		if obj.IsEnemy() {
+			obj.EnemyPlan(player)
+		}
+	}
+}
+
+func CleanAllEnemyAndBullet() {
+	for _, obj := range gameObjects {
+		if obj.IsEnemy() || obj.IsBullet() {
+			obj.Delete()
+		}
+	}
+}
+
 type GameObject interface {
 	Draw()
 	GameObjectId() int
@@ -498,6 +517,8 @@ type GameObject interface {
 	Hitbox() rl.Rectangle
 	Move()
 	PrevPosition() rl.Vector2
+	EnemyPlan(player Player)
+	Delete()
 }
 
 type Timer struct {
@@ -606,8 +627,16 @@ func (b *Button) Move() {
 	return
 }
 
+func (b *Button) EnemyPlan(player Player) {
+	return
+}
+
 func (b *Button) PrevPosition() rl.Vector2 {
 	return b.position
+}
+
+func (b *Button) Delete() {
+	return
 }
 
 type Player struct {
@@ -647,18 +676,84 @@ func (p *Player) Hitbox() rl.Rectangle {
 func (p *Player) Move() {
 }
 
+func (p *Player) EnemyPlan(player Player) {
+}
+
 func (p *Player) PrevPosition() rl.Vector2 {
 	return p.position
 }
 
+func (p *Player) Delete() {
+	return
+}
+
 type Enemy struct {
-	id            int
-	texture       rl.Texture2D
-	sourceRec     rl.Rectangle
-	position      rl.Vector2
-	color         rl.Color
-	movementSpeed float32
-	vector        rl.Vector2
+	id             int
+	texture        rl.Texture2D
+	sourceRec      rl.Rectangle
+	position       rl.Vector2
+	color          rl.Color
+	movementSpeed  float32
+	lastPlanVector rl.Vector2
+	/**
+	0: stop
+	1: run to player
+	2: move movePlan 0: up 1: up-right 2: right 3: right-down 4: down 5: down-left 6: left 7: left-up
+	3: run to player with anger
+	*/
+	plan int
+	/**
+	movePlan 0: up 1: up-right 2: right 3: right-down 4: down 5: down-left 6: left 7: left-up
+	*/
+	movePlan         int
+	lastPlanInitTime time.Time
+	lastPlanDuration time.Duration
+}
+
+func (e *Enemy) resetPlan() {
+	e.plan = rand.Intn(4)
+
+	if e.plan == 2 {
+		e.movePlan = rand.Intn(8)
+	} else {
+		e.movePlan = 0
+	}
+
+	e.movementSpeed = float32(rand.Intn(5) + 5)
+	if e.plan == 3 {
+		e.movementSpeed += 10
+	}
+
+	e.lastPlanInitTime = time.Now()
+	e.lastPlanDuration = time.Duration(rand.Intn(3)+1) * time.Second
+}
+
+func (e *Enemy) invokeRush() {
+	e.movementSpeed = float32(rand.Intn(5) + 5)
+	e.plan = 3
+	e.movementSpeed += 10
+
+	e.lastPlanInitTime = time.Now()
+	e.lastPlanDuration = time.Duration(rand.Intn(3)+1) * time.Second
+}
+
+func (e *Enemy) isPlanOver() bool {
+	timeSince := time.Since(e.lastPlanInitTime)
+	if timeSince > e.lastPlanDuration {
+		return true
+	}
+	return false
+}
+
+func (e *Enemy) isOutOfMonitor() bool {
+	hb := e.Hitbox()
+	screenWidth := rl.GetScreenWidth()
+	screenHeight := rl.GetScreenHeight()
+	if hb.X+hb.Width < 0 || hb.X > float32(screenWidth) ||
+		hb.Y+hb.Height < 0 || hb.Y > float32(screenHeight) {
+		return true
+	}
+	return false
 }
 
 func (e *Enemy) Draw() {
@@ -692,12 +787,94 @@ func (e *Enemy) IsBullet() bool {
 }
 
 func (e *Enemy) Move() {
-	e.position.X += e.vector.X
-	e.position.Y += e.vector.Y
+	e.position.X += e.lastPlanVector.X
+	e.position.Y += e.lastPlanVector.Y
+}
+
+func (e *Enemy) EnemyPlan(player Player) {
+	if e.isOutOfMonitor() {
+		e.invokeRush()
+	} else {
+		if e.isPlanOver() {
+			e.resetPlan()
+		}
+	}
+
+	switch e.plan {
+	case 0:
+		e.lastPlanVector = rl.Vector2{X: 0, Y: 0}
+	case 1:
+		dx := player.position.X - e.position.X
+		dy := player.position.Y - e.position.Y
+		dist := float32(math.Sqrt(float64(dx*dx + dy*dy)))
+		if dist != 0 {
+			unitX := dx / dist
+			unitY := dy / dist
+			e.lastPlanVector = rl.Vector2{
+				X: unitX * e.movementSpeed,
+				Y: unitY * e.movementSpeed,
+			}
+		} else {
+			e.lastPlanVector = rl.Vector2{X: 0, Y: 0}
+		}
+	case 2:
+		var direction rl.Vector2
+		switch e.movePlan {
+		case 0:
+			direction = rl.Vector2{X: 0, Y: -1}
+		case 1:
+			direction = rl.Vector2{X: 1, Y: -1}
+		case 2:
+			direction = rl.Vector2{X: 1, Y: 0}
+		case 3:
+			direction = rl.Vector2{X: 1, Y: 1}
+		case 4:
+			direction = rl.Vector2{X: 0, Y: 1}
+		case 5:
+			direction = rl.Vector2{X: -1, Y: 1}
+		case 6:
+			direction = rl.Vector2{X: -1, Y: 0}
+		case 7:
+			direction = rl.Vector2{X: -1, Y: -1}
+		default:
+			direction = rl.Vector2{X: 0, Y: 0}
+		}
+
+		mag := float32(math.Sqrt(float64(direction.X*direction.X + direction.Y*direction.Y)))
+		if mag != 0 {
+			direction.X /= mag
+			direction.Y /= mag
+		}
+		e.lastPlanVector = rl.Vector2{
+			X: direction.X * e.movementSpeed,
+			Y: direction.Y * e.movementSpeed,
+		}
+	case 3:
+		dx := player.position.X - e.position.X
+		dy := player.position.Y - e.position.Y
+		dist := float32(math.Sqrt(float64(dx*dx + dy*dy)))
+		if dist != 0 {
+			unitX := dx / dist
+			unitY := dy / dist
+			e.lastPlanVector = rl.Vector2{
+				X: unitX * e.movementSpeed,
+				Y: unitY * e.movementSpeed,
+			}
+		} else {
+			e.lastPlanVector = rl.Vector2{X: 0, Y: 0}
+		}
+	default:
+		e.lastPlanVector = rl.Vector2{X: 0, Y: 0}
+	}
 }
 
 func (e *Enemy) PrevPosition() rl.Vector2 {
 	return e.position
+}
+
+func (e *Enemy) Delete() {
+	delete(gameObjects, e.id)
+	return
 }
 
 type Bullet struct {
@@ -745,11 +922,19 @@ func (b *Bullet) Move() {
 	b.position.Y += b.vector.Y
 }
 
+func (b *Bullet) EnemyPlan(player Player) {
+}
+
 func (b *Bullet) PrevPosition() rl.Vector2 {
 	return rl.Vector2{
 		X: b.position.X - b.vector.X,
 		Y: b.position.Y - b.vector.Y,
 	}
+}
+
+func (b *Bullet) Delete() {
+	delete(gameObjects, b.id)
+	return
 }
 
 func raylibWindowMidPoint(elementWidth float32, elementHeight float32) (midX float32, midY float32) {
