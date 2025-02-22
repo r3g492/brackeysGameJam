@@ -51,10 +51,14 @@ func main() {
 
 	// https://pixabay.com/music/trap-spinning-head-271171/
 	bgm := rl.LoadSound("resources/spinning-head-271171.mp3")
+	// https://pixabay.com/sound-effects/you-lose-game-sound-230514/
+	loseSound := rl.LoadSound("resources/you-lose-game-sound-230514.mp3")
+	// https://pixabay.com/sound-effects/game-bonus-2-294436/
+	winSound := rl.LoadSound("resources/game-bonus-2-294436.mp3")
 	rl.PlaySound(bgm)
 	gunShot := rl.LoadSound("resources/shotgun-03-38220.mp3")
 	stageIdx := 0
-	stageEnd := 5
+	stageEnd := 30
 
 	gameTimer := Timer{
 		time.Now(),
@@ -109,6 +113,8 @@ func main() {
 
 			if hasWonStage() {
 				if stageIdx >= stageEnd-1 {
+					rl.PlaySound(winSound)
+					rl.StopSound(bgm)
 					if WinScreen(buttonTexture2D, display, startTexture2D, gameTimer) {
 						return
 					}
@@ -118,6 +124,8 @@ func main() {
 
 			playerMovement(&player)
 			if playerDeathCheck(&player) {
+				rl.PlaySound(loseSound)
+				rl.StopSound(bgm)
 				if gameOverScreen(buttonTexture2D, display, startTexture2D) {
 					// restart game
 					stageIdx = -1
@@ -182,7 +190,7 @@ func createEnemy(enemyTexture rl.Texture2D, generatePosition rl.Vector2) {
 		plan:             0,
 		movePlan:         0,
 		lastPlanInitTime: time.Now(),
-		lastPlanDuration: time.Duration(1),
+		lastPlanDuration: time.Duration(100) * time.Millisecond,
 	}
 	gameObjects[nextGameObjectId] = &bullet
 	nextGameObjectId++
@@ -740,7 +748,11 @@ type Enemy struct {
 }
 
 func (e *Enemy) resetPlan() {
-	e.plan = rand.Intn(4)
+	nextPlan := rand.Intn(4)
+	if e.plan == nextPlan {
+		nextPlan = rand.Intn(4)
+	}
+	e.plan = nextPlan
 
 	if e.plan == 2 {
 		e.movePlan = rand.Intn(8)
@@ -750,17 +762,18 @@ func (e *Enemy) resetPlan() {
 
 	e.movementSpeed = float32(rand.Intn(5) + 5)
 	if e.plan == 3 {
-		e.movementSpeed += 10
+		e.movementSpeed += 5
 	}
 
 	e.lastPlanInitTime = time.Now()
-	e.lastPlanDuration = time.Duration(rand.Intn(3)+1) * time.Second
+	// e.lastPlanDuration = time.Duration(rand.Intn(3)+1) * time.Second
+	e.lastPlanDuration = time.Duration(1) * time.Second
 }
 
 func (e *Enemy) invokeRush() {
 	e.movementSpeed = float32(rand.Intn(5) + 5)
 	e.plan = 3
-	e.movementSpeed += 10
+	e.movementSpeed += 20
 
 	e.lastPlanInitTime = time.Now()
 	e.lastPlanDuration = time.Duration(rand.Intn(3)+1) * time.Second
