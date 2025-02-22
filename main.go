@@ -406,9 +406,9 @@ func startButtonScreen(
 			fmt.Sprintf(
 				"The Cold Killer",
 			),
-			int32(rl.GetMonitorWidth(display)/2-400),
+			int32(rl.GetMonitorWidth(display)/2-500),
 			int32(rl.GetMonitorHeight(display)/2-400),
-			120,
+			80,
 			rl.Black,
 		)
 		rl.EndDrawing()
@@ -449,9 +449,9 @@ func gameOverScreen(
 		)
 		rl.DrawText(
 			fmt.Sprintf(
-				"you died. \n you must be perfect...",
+				"you died.",
 			),
-			int32(rl.GetMonitorWidth(display)/2-400),
+			int32(rl.GetMonitorWidth(display)/2-600),
 			int32(rl.GetMonitorHeight(display)/2-400),
 			100,
 			rl.Red,
@@ -728,6 +728,20 @@ func (b *Button) Draw() {
 		b.position,
 		b.color,
 	)
+	rl.DrawText(
+		fmt.Sprintf(
+			"go",
+		),
+		int32(b.position.X+80),
+		int32(b.position.Y+25),
+		40,
+		rl.Color{
+			R: 250,
+			G: 200,
+			B: 0,
+			A: 200,
+		},
+	)
 }
 
 func (b *Button) IsEnemy() bool {
@@ -887,7 +901,7 @@ func (e *Enemy) resetPlan() {
 func (e *Enemy) invokeRush() {
 	e.movementSpeed = float32(rand.Intn(5) + 5)
 	e.plan = 3
-	e.movementSpeed += 20
+	e.movementSpeed += 25
 
 	e.lastPlanInitTime = time.Now()
 	e.lastPlanDuration = time.Duration(rand.Intn(3)+1) * time.Second
@@ -914,7 +928,7 @@ func (e *Enemy) isOutOfMonitor() bool {
 }
 
 func (e *Enemy) Draw() {
-	if e.plan == 3 && e.movementSpeed >= 23 {
+	if e.plan == 3 && e.movementSpeed >= 30 {
 		rl.DrawTextureRec(
 			e.texture,
 			e.sourceRec,
