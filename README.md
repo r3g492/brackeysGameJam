@@ -11,3 +11,6 @@ for linux, just build.
 for windows, do ..  
 export PATH="/home/gwk/go/go1.24.0/bin:$PATH"
 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc GOOS=windows GOARCH=amd64 go build -ldflags "-s -w"
+
+play gif:  
+![introduction.gif](introduction/introduction.gif)
