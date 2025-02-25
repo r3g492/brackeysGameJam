@@ -51,3 +51,4 @@ hence, Raylib
 ## Future goals
 - Full 3D game.
 - Game on steam.
+- Might use different stack. Java/Kotlin + LibGDX looks good.
