@@ -17,6 +17,7 @@ play gif:
 
 # Game dev considerations 
 <img width="524" alt="image" src="https://github.com/user-attachments/assets/09962387-07ad-4da2-9c6d-f2e914c66776" />
+  
 ## Choosing programming language
 ### Requirements
 1. Not handling hardware compatibility by myself. Option to use language feature to compile into other operating systems
